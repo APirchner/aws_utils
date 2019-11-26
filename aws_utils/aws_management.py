@@ -2,6 +2,7 @@ from typing import Dict
 
 import boto3
 
+
 def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]):
     iam_client = boto3.client('iam')
 
@@ -41,5 +42,10 @@ def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]):
     secret_key = response['AccessKey']['SecretAccessKey']
     return user_id, access_key, secret_key
 
-def _s3_setup(credentials:Dict[str, str], name:str, region:str):
-    pass
+
+def _s3_setup(name: str, region: str):
+    s3_client = boto3.client('s3')
+    s3_client.create_bucket(
+        Bucket=name, CreateBucketConfiguration={'LocationConstraint': region} if region != 'us-east-1' else None
+    )
+    s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'enabled'})
