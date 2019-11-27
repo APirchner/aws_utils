@@ -1,5 +1,5 @@
 from datetime import datetime as dt
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 import boto3
 
@@ -44,13 +44,13 @@ def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]) -> Tup
     return user_id, access_key_id, secret_key
 
 
-def _get_cheapest_zone(region: str, instance_type: str) -> Tuple[str, float]:
+def _get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[str, float]]:
     ec2_client = boto3.client('ec2', region_name=region)
     response = ec2_client.describe_spot_price_history(InstanceTypes=[instance_type], StartTime=dt.now(),
                                                       ProductDescriptions=['Linux/UNIX'])
     zone_prices = [(zone['AvailabilityZone'], float(zone['SpotPrice'])) for zone in response['SpotPriceHistory']]
-    cheapest_zone = sorted(zone_prices, key=lambda x: x[1])[0]
-    return cheapest_zone
+    cheapest_zones = sorted(zone_prices, key=lambda x: x[1])[0:min(len(zone_prices, n))]
+    return cheapest_zones
 
 
 def _create_key_pair(name: str, region: str):
