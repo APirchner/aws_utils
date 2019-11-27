@@ -1,9 +1,10 @@
-from typing import Dict
+from datetime import datetime as dt
+from typing import Dict, Tuple
 
 import boto3
 
 
-def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]):
+def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]) -> Tuple[str, str, str]:
     iam_client = boto3.client('iam')
 
     # set up group with specified policies
@@ -38,14 +39,44 @@ def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]):
         iam_client.delete_access_key(UserName=user_name,
                                      AccessKeyId=response['AccessKeyMetadata'][-1]['AccessKeyId'])
     response = iam_client.create_access_key(UserName=user_name)
-    access_key = response['AccessKey']['AccessKeyId']
+    access_key_id = response['AccessKey']['AccessKeyId']
     secret_key = response['AccessKey']['SecretAccessKey']
-    return user_id, access_key, secret_key
+    return user_id, access_key_id, secret_key
 
 
-def _s3_setup(name: str, region: str):
-    s3_client = boto3.client('s3')
-    s3_client.create_bucket(
-        Bucket=name, CreateBucketConfiguration={'LocationConstraint': region} if region != 'us-east-1' else None
-    )
-    s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'enabled'})
+def _get_cheapest_zone(region: str, instance_type: str) -> Tuple[str, float]:
+    ec2_client = boto3.client('ec2', region_name=region)
+    response = ec2_client.describe_spot_price_history(InstanceTypes=[instance_type], StartTime=dt.now(),
+                                                      ProductDescriptions=['Linux/UNIX'])
+    zone_prices = [(zone['AvailabilityZone'], float(zone['SpotPrice'])) for zone in response['SpotPriceHistory']]
+    cheapest_zone = sorted(zone_prices, key=lambda x: x[1])[0]
+    return cheapest_zone
+
+
+def _create_key_pair(name: str, region: str):
+    ec2_client = boto3.client('ec2', region_name=region)
+    # check if key exists and delete if yes
+    keypairs = ec2_client.describe_key_pairs()['KeyPairs']
+    for key_pair in keypairs:
+        if key_pair['KeyName'] == 'spark-key':
+            ec2_client.delete_key_pair(KeyName=key_pair['KeyName'])
+
+    # create new key
+    response = ec2_client.create_key_pair(KeyName=name)
+    key = {'name': response['KeyName'], 'private_key': response['KeyMaterial']}
+
+    with open("key.pem", 'w') as f:
+        f.write(key['private_key'])
+    return key
+
+
+def _s3_setup(name: str, region: str) -> None:
+    if region != 'us-east-1':
+        s3_client = boto3.client('s3')
+        s3_client.create_bucket(
+            Bucket=name, CreateBucketConfiguration={'LocationConstraint': region}
+        )
+    else:
+        s3_client = boto3.client('s3')
+        s3_client.create_bucket(Bucket=name)
+    s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'Enabled'})
