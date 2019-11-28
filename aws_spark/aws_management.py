@@ -1,6 +1,8 @@
 from datetime import datetime as dt
 from typing import Dict, Tuple, List
 
+import yaml
+
 import boto3
 
 
@@ -49,7 +51,7 @@ def _get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[
     response = ec2_client.describe_spot_price_history(InstanceTypes=[instance_type], StartTime=dt.now(),
                                                       ProductDescriptions=['Linux/UNIX'])
     zone_prices = [(zone['AvailabilityZone'], float(zone['SpotPrice'])) for zone in response['SpotPriceHistory']]
-    cheapest_zones = sorted(zone_prices, key=lambda x: x[1])[0:min(len(zone_prices, n))]
+    cheapest_zones = sorted(zone_prices, key=lambda x: x[1])[0:min(len(zone_prices), n)]
     return cheapest_zones
 
 
@@ -70,6 +72,12 @@ def _create_key_pair(name: str, region: str):
     return key
 
 
+def _s3_kops_config_exist(bucket:str) -> bool:
+    s3_client = boto3.client('s3')
+    response = s3_client.list_buckets()
+    return bucket in [bucket['Name'] for bucket in response['Buckets']]
+
+
 def _s3_setup(name: str, region: str) -> None:
     if region != 'us-east-1':
         s3_client = boto3.client('s3')
@@ -80,3 +88,9 @@ def _s3_setup(name: str, region: str) -> None:
         s3_client = boto3.client('s3')
         s3_client.create_bucket(Bucket=name)
     s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'Enabled'})
+
+def _s3_get_kops_config(bucket: str, key:str):
+    s3_client = boto3.client('s3')
+    config_raw = s3_client.get_object(Bucket=bucket, Key=key)
+    return yaml.load(config_raw['Body'].read().decode(), Loader=yaml.Loader)
+
