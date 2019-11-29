@@ -57,7 +57,7 @@ def _ec2_get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tu
     return cheapest_zones
 
 
-def _ec2_create_key_pair(name: str, region: str):
+def _ec2_create_key_pair(name: str, region: str, path:str):
     ec2_client = boto3.client('ec2', region_name=region)
     # check if key exists and delete if yes
     response = ec2_client.describe_key_pairs()
@@ -66,8 +66,8 @@ def _ec2_create_key_pair(name: str, region: str):
             ec2_client.delete_key_pair(KeyName=key_pair['KeyName'])
     response = ec2_client.create_key_pair(KeyName=name)
     key = {'name': response['KeyName'], 'private_key': response['KeyMaterial']}
-    key_priv = '../keys/' + name + '.pem'
-    key_pub = '../keys/' + name + '.pub'
+    key_priv = os.path.join(path, name + '.pem')
+    key_pub = os.path.join(path, name + '.pub')
     os.makedirs(os.path.dirname(key_priv), exist_ok=True)
     with open(key_priv, 'w') as file:
         file.write(key['private_key'])
