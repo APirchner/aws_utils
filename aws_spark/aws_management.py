@@ -1,3 +1,5 @@
+import os, stat
+import subprocess as sp
 from datetime import datetime as dt
 from typing import Dict, Tuple, List
 
@@ -46,7 +48,7 @@ def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]) -> Tup
     return user_id, access_key_id, secret_key
 
 
-def _get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[str, float]]:
+def _ec2_get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[str, float]]:
     ec2_client = boto3.client('ec2', region_name=region)
     response = ec2_client.describe_spot_price_history(InstanceTypes=[instance_type], StartTime=dt.now(),
                                                       ProductDescriptions=['Linux/UNIX'])
@@ -55,24 +57,26 @@ def _get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[
     return cheapest_zones
 
 
-def _create_key_pair(name: str, region: str):
+def _ec2_create_key_pair(name: str, region: str):
     ec2_client = boto3.client('ec2', region_name=region)
     # check if key exists and delete if yes
-    keypairs = ec2_client.describe_key_pairs()['KeyPairs']
-    for key_pair in keypairs:
-        if key_pair['KeyName'] == 'spark-key':
+    response = ec2_client.describe_key_pairs()
+    for key_pair in response['KeyPairs']:
+        if key_pair['KeyName'] == name:
             ec2_client.delete_key_pair(KeyName=key_pair['KeyName'])
-
-    # create new key
     response = ec2_client.create_key_pair(KeyName=name)
     key = {'name': response['KeyName'], 'private_key': response['KeyMaterial']}
+    key_priv = '../keys/' + name + '.pem'
+    key_pub = '../keys/' + name + '.pub'
+    os.makedirs(os.path.dirname(key_priv), exist_ok=True)
+    with open(key_priv, 'w') as file:
+        file.write(key['private_key'])
+        os.chmod(key_priv, stat.S_IWRITE | stat.S_IREAD)
+    with open(key_pub, 'w') as file:
+        sp.run(['ssh-keygen', '-y', '-f', key_priv], check=True, stdout=file)
 
-    with open("key.pem", 'w') as f:
-        f.write(key['private_key'])
-    return key
 
-
-def _s3_kops_config_exist(bucket:str) -> bool:
+def _s3_kops_config_exist(bucket: str) -> bool:
     s3_client = boto3.client('s3')
     response = s3_client.list_buckets()
     return bucket in [bucket['Name'] for bucket in response['Buckets']]
@@ -89,8 +93,8 @@ def _s3_setup(name: str, region: str) -> None:
         s3_client.create_bucket(Bucket=name)
     s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'Enabled'})
 
-def _s3_get_kops_config(bucket: str, key:str):
+
+def _s3_get_kops_config(bucket: str, key: str):
     s3_client = boto3.client('s3')
     config_raw = s3_client.get_object(Bucket=bucket, Key=key)
     return yaml.load(config_raw['Body'].read().decode(), Loader=yaml.Loader)
-
