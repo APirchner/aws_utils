@@ -48,13 +48,13 @@ def _iam_setup(user_name: str, group_name: str, policies: Dict[str, str]) -> Tup
     return user_id, access_key_id, secret_key
 
 
-def _ec2_get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[Tuple[str, float]]:
+def _ec2_get_Ncheapest_zones(n: int, region: str, instance_type: str) -> List[str]:
     ec2_client = boto3.client('ec2', region_name=region)
     response = ec2_client.describe_spot_price_history(InstanceTypes=[instance_type], StartTime=dt.now(),
                                                       ProductDescriptions=['Linux/UNIX'])
     zone_prices = [(zone['AvailabilityZone'], float(zone['SpotPrice'])) for zone in response['SpotPriceHistory']]
     cheapest_zones = sorted(zone_prices, key=lambda x: x[1])[0:min(len(zone_prices), n)]
-    return cheapest_zones
+    return [zone[0] for zone in cheapest_zones]
 
 
 def _ec2_create_key_pair(name: str, region: str, path:str):
