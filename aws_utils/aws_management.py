@@ -79,7 +79,12 @@ def _ec2_create_key_pair(name: str, region: str, path:str):
 def _s3_kops_config_exist(bucket: str) -> bool:
     s3_client = boto3.client('s3')
     response = s3_client.list_buckets()
-    return bucket in [bucket['Name'] for bucket in response['Buckets']]
+    bucket_exists = bucket in [bucket['Name'] for bucket in response['Buckets']]
+    if bucket_exists:
+        res = s3_client.list_objects_v2(Bucket=bucket)
+        return res['KeyCount'] > 0
+    else:
+        return bucket_exists
 
 
 def _s3_setup(name: str, region: str) -> None:
@@ -93,8 +98,8 @@ def _s3_setup(name: str, region: str) -> None:
         s3_client.create_bucket(Bucket=name)
     s3_client.put_bucket_versioning(Bucket=name, VersioningConfiguration={'Status': 'Enabled'})
 
-
-def _s3_get_kops_config(bucket: str, key: str):
+def _s3_delete_all_keys(bucket: str):
     s3_client = boto3.client('s3')
-    config_raw = s3_client.get_object(Bucket=bucket, Key=key)
-    return yaml.load(config_raw['Body'].read().decode(), Loader=yaml.Loader)
+    objects = [{'Key': key['Key']} for key in s3_client.list_objects_v2(Bucket=bucket)['Contents']]
+    s3_client.delete_objects(Bucket=bucket, Delete={'Objects': objects})
+
