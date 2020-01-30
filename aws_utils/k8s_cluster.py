@@ -63,7 +63,6 @@ def _build_config(specs: Dict[str, Union[str, int, float]], logfile: str = None)
         '--node-count=' + str(specs['nodes']),
         '--master-size=' + specs['master_size'],
         '--node-size=' + specs['node_size'],
-        '--networking=calico',
         '--topology=public',
         '--state=' + specs['state_store'],
         '--dry-run',
