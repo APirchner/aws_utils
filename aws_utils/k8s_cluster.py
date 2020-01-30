@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import os
 import math
 import subprocess
@@ -7,7 +8,7 @@ from datetime import datetime as dt
 
 import yaml
 
-import aws_utils.aws_management as mgmt
+from aws_utils import aws_management as mgmt
 
 LOG = '../logs'
 MANIFESTS = '../cluster_manifests'
@@ -63,6 +64,7 @@ def _build_config(specs: Dict[str, Union[str, int, float]], logfile: str = None)
         '--node-count=' + str(specs['nodes']),
         '--master-size=' + specs['master_size'],
         '--node-size=' + specs['node_size'],
+        '--network=calico'
         '--topology=public',
         '--state=' + specs['state_store'],
         '--dry-run',
@@ -143,6 +145,7 @@ def k8s_cluster(specs: Dict[str, Union[str, int, float]]):
                      '--yes'], logfile=kops_log)
     if not specs['log']:
         print(ret.stderr.decode('utf-8'))
+
     print(CRED + specs['cluster_name'] + '.k8s.local is running.' + CEND)
 
 
